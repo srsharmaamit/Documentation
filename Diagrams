@@ -1,0 +1,140 @@
+flowchart TB
+    %% ============ CONSUMPTION ============
+    subgraph CONSUMPTION["CONSUMPTION"]
+        direction LR
+        BI["Tableau / Power BI"]
+        NB["Jupyter Notebooks"]
+        ML["ML / Data Science"]
+        APPS["Internal Apps / APIs"]
+    end
+
+    %% ============ GOVERNANCE ============
+    subgraph GOVERNANCE["DISCOVERY &amp; GOVERNANCE"]
+        ALATION["Alation Data Catalog<br/>glossary · lineage · stewardship · search"]
+    end
+
+    %% ============ QUERY ENGINES ============
+    subgraph QUERY["QUERY ENGINES"]
+        direction LR
+        TRINO["Trino / Starburst<br/>interactive SQL"]
+        SPARKSQL["Spark SQL<br/>batch · ML"]
+        DBT["DBT on Spark<br/>transformation"]
+    end
+
+    %% ============ ACCESS CONTROL ============
+    subgraph FGACZONE["FINE-GRAINED ACCESS CONTROL"]
+        FGAC["iceberg-fgac · row / column filtering · masking · policy eval"]
+    end
+
+    %% ============ CATALOG ============
+    subgraph CATALOG["ICEBERG CATALOG (versioned)"]
+        direction LR
+        NESSIE["Project Nessie<br/>branches · commits · tags"]
+        PG[("PostgreSQL<br/>Nessie metadata store")]
+        HMS["Hive MS<br/>(legacy)"]
+    end
+
+    %% ============ STORAGE ============
+    subgraph STORAGE["LAKEHOUSE STORAGE"]
+        S3[("S3-compatible Object Store<br/>NetApp StorageGRID / MinIO<br/>Iceberg tables · parquet · manifests · snapshots")]
+    end
+
+    %% ============ INGESTION ============
+    subgraph INGESTION["INGESTION &amp; PROCESSING"]
+        direction LR
+        AIRFLOW["Apache Airflow<br/>orchestration · scheduling"]
+        SPARK["Spark Jobs on K8s<br/>ETL · CDC · streaming"]
+    end
+
+    %% ============ SOURCES ============
+    subgraph SOURCES["DATA SOURCES"]
+        direction LR
+        ORACLE[("Oracle / MSSQL")]
+        MONGO[("MongoDB")]
+        KAFKA["Kafka / CDC"]
+        SFTP["SFTP / Files"]
+        MF["Mainframe / APIs"]
+    end
+
+    %% ============ PLATFORM PLANE (Kubernetes) ============
+    subgraph K8S["KUBERNETES PLATFORM PLANE"]
+        direction LR
+        AUTH["LDAP / AD<br/>SSO · OIDC"]
+        MON["Prometheus<br/>Grafana"]
+        VAULT["Vault<br/>secrets"]
+        REG["Image Registry"]
+    end
+
+    %% ============ DATA FLOW ============
+    %% Sources → Spark
+    ORACLE --> SPARK
+    MONGO  --> SPARK
+    KAFKA  --> SPARK
+    SFTP   --> SPARK
+    MF     --> SPARK
+
+    %% Airflow orchestrates Spark
+    AIRFLOW -. "triggers" .-> SPARK
+
+    %% Spark writes data + commits metadata
+    SPARK -- "writes Iceberg" --> S3
+    SPARK -. "commits" .-> NESSIE
+
+    %% Catalog ↔ Storage
+    NESSIE -- "resolves files" --> S3
+    NESSIE -- "persists" --> PG
+
+    %% FGAC asks catalog
+    FGAC -- "asks catalog" --> NESSIE
+
+    %% Query engines → FGAC
+    TRINO    --> FGAC
+    SPARKSQL --> FGAC
+    DBT      --> FGAC
+
+    %% Consumers → Query engines
+    BI   --> TRINO
+    NB   --> SPARKSQL
+    ML   --> SPARKSQL
+    APPS --> TRINO
+
+    %% Alation harvests sideways (dashed)
+    ALATION -. "harvests" .-> TRINO
+    ALATION -. "harvests" .-> NESSIE
+    ALATION -. "harvests" .-> S3
+
+    %% ============ NODE STYLING ============
+    classDef consumer    fill:#a5d8ff,stroke:#4a9eed,stroke-width:2px,color:#0b2545
+    classDef governance  fill:#d0bfff,stroke:#8b5cf6,stroke-width:2px,color:#2e1065
+    classDef query       fill:#ffd8a8,stroke:#f59e0b,stroke-width:2px,color:#7c2d12
+    classDef fgacNode    fill:#ffc9c9,stroke:#ef4444,stroke-width:2px,color:#7f1d1d
+    classDef catalogA    fill:#a5d8ff,stroke:#4a9eed,stroke-width:2px,color:#0b2545
+    classDef catalogB    fill:#c3fae8,stroke:#06b6d4,stroke-width:2px,color:#134e4a
+    classDef legacy      fill:#fff3bf,stroke:#f59e0b,stroke-width:1px,color:#7c2d12
+    classDef storage     fill:#c3fae8,stroke:#06b6d4,stroke-width:2px,color:#134e4a
+    classDef ingestion   fill:#b2f2bb,stroke:#22c55e,stroke-width:2px,color:#14532d
+    classDef source      fill:#ffd8a8,stroke:#f59e0b,stroke-width:2px,color:#7c2d12
+    classDef platform    fill:#d0bfff,stroke:#8b5cf6,stroke-width:2px,color:#2e1065
+
+    class BI,NB,ML,APPS consumer
+    class ALATION governance
+    class TRINO,SPARKSQL,DBT query
+    class FGAC fgacNode
+    class NESSIE catalogA
+    class PG catalogB
+    class HMS legacy
+    class S3 storage
+    class AIRFLOW,SPARK ingestion
+    class ORACLE,MONGO,KAFKA,SFTP,MF source
+    class AUTH,MON,VAULT,REG platform
+
+    %% ============ SUBGRAPH (ZONE) STYLING ============
+    style CONSUMPTION fill:#dbe4ff,stroke:#4a9eed,stroke-width:1px,color:#1e3a8a
+    style GOVERNANCE  fill:#f3e8ff,stroke:#8b5cf6,stroke-width:1px,color:#5b21b6
+    style QUERY       fill:#fff3bf,stroke:#f59e0b,stroke-width:1px,color:#92400e
+    style FGACZONE    fill:#ffe4e6,stroke:#ef4444,stroke-width:1px,color:#991b1b
+    style CATALOG     fill:#dbeafe,stroke:#4a9eed,stroke-width:1px,color:#1e3a8a
+    style STORAGE     fill:#ccfbf1,stroke:#06b6d4,stroke-width:1px,color:#0e7490
+    style INGESTION   fill:#d3f9d8,stroke:#22c55e,stroke-width:1px,color:#166534
+    style SOURCES     fill:#ffedd5,stroke:#f59e0b,stroke-width:1px,color:#92400e
+    style K8S         fill:#ede9fe,stroke:#8b5cf6,stroke-width:2px,color:#5b21b6
